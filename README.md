@@ -1,6 +1,6 @@
 # iPad as Windows PC Speaker
 
-Stream high-quality audio from your Windows PC to your iPad over WiFi using this simple web-based solution.
+Stream high-quality audio from your Windows PC to your iPad over WiFi using this simple web-based solution. Uses TCP so latency is high. Make sure silent mode is off in your device. Latency is bad for streaming video audio but can be used for streaming for music only.
 
 ## Features
 
@@ -84,4 +84,5 @@ For Safari on iOS, you may need HTTPS. For home use, you can:
 - `websockets` - WebSocket server
 - `sounddevice` - Audio capture
 - `numpy` - Audio processing
+
 
