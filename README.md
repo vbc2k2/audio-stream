@@ -4,8 +4,7 @@ Stream high-quality audio from your Windows PC to your iPad over WiFi using this
 
 ## Features
 
-- **High Quality Audio**: 48kHz 16-bit stereo (CD quality)
-- **Low Latency**: ~50-150ms typical latency
+- **Quality Audio**: 48kHz 16-bit stereo (CD quality)
 - **No iPad App Required**: Works in Safari browser
 - **Simple Setup**: One-click server launch
 
@@ -18,7 +17,7 @@ Stream high-quality audio from your Windows PC to your iPad over WiFi using this
 
 **Option B: Command line**
 ```powershell
-cd d:\TAMU\audio_stream
+cd <$PATH>\audio_stream
 pip install -r requirements.txt
 python server.py
 ```
@@ -27,7 +26,7 @@ python server.py
 
 1. Make sure iPad and PC are on the **same WiFi network**
 2. Open Safari on your iPad
-3. Go to the URL shown in the server window (e.g., `http://192.168.1.100:8080`)
+3. Go to the URL shown in the server window (e.g., `http://192.X.Y.Z:8080`)
 4. Tap **"Start Audio"** button
 5. Play audio on your Windows PC - it will stream to your iPad!
 
@@ -85,3 +84,4 @@ For Safari on iOS, you may need HTTPS. For home use, you can:
 - `websockets` - WebSocket server
 - `sounddevice` - Audio capture
 - `numpy` - Audio processing
+
