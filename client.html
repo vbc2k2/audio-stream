@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Audio Stream - iPad Speaker</title>
+  <style>
+    /* --- (unchanged CSS from your file) --- */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh; display: flex; justify-content: center; align-items: center;
+      color: #ffffff; overflow: hidden;
+    }
+    .container { text-align: center; padding: 2rem; width: 100%; max-width: 400px; }
+    h1 {
+      font-size: 1.8rem; font-weight: 600; margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle { color: #8892b0; font-size: 0.9rem; margin-bottom: 2rem; }
+    .status-card {
+      background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
+      border-radius: 20px; padding: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 1.5rem;
+    }
+    .status-indicator {
+      width: 80px; height: 80px; border-radius: 50%;
+      margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;
+      position: relative; transition: all 0.3s ease;
+    }
+    .status-indicator.disconnected { background: linear-gradient(135deg, #2d3748, #1a202c); box-shadow: 0 0 30px rgba(100, 100, 100, 0.2); }
+    .status-indicator.connecting { background: linear-gradient(135deg, #f6ad55, #ed8936); box-shadow: 0 0 30px rgba(246, 173, 85, 0.4); animation: pulse 1.5s ease-in-out infinite; }
+    .status-indicator.connected { background: linear-gradient(135deg, #48bb78, #38a169); box-shadow: 0 0 30px rgba(72, 187, 120, 0.4); }
+    .status-indicator.playing { background: linear-gradient(135deg, #00d4ff, #7b2cbf); box-shadow: 0 0 40px rgba(0, 212, 255, 0.5); }
+    .status-indicator.error { background: linear-gradient(135deg, #fc8181, #e53e3e); box-shadow: 0 0 30px rgba(229, 62, 62, 0.4); }
+    @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
+    .status-icon { font-size: 2rem; }
+    .status-text { font-size: 1.1rem; font-weight: 500; margin-bottom: 0.5rem; }
+    .status-detail { font-size: 0.85rem; color: #8892b0; }
+    .start-button {
+      width: 100%; padding: 1rem 2rem; font-size: 1.1rem; font-weight: 600;
+      border: none; border-radius: 12px; cursor: pointer; transition: all 0.3s ease;
+      background: linear-gradient(135deg, #00d4ff, #7b2cbf); color: white;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .start-button:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3); }
+    .start-button:active { transform: translateY(0); }
+    .start-button:disabled { background: #4a5568; cursor: not-allowed; transform: none; box-shadow: none; }
+    .stop-button { background: linear-gradient(135deg, #e53e3e, #c53030); }
+    .stop-button:hover { box-shadow: 0 10px 30px rgba(229, 62, 62, 0.3); }
+    .volume-control { margin-top: 1.5rem; display: none; }
+    .volume-control.visible { display: block; }
+    .volume-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.9rem; color: #a0aec0; }
+    .volume-slider { width: 100%; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); -webkit-appearance: none; appearance: none; outline: none; }
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%;
+      background: linear-gradient(135deg, #00d4ff, #7b2cbf); cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0, 212, 255, 0.4);
+    }
+    .stats { margin-top: 1.5rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; display: none; }
+    .stats.visible { display: grid; }
+    .stat-item { background: rgba(255, 255, 255, 0.05); padding: 0.75rem; border-radius: 10px; }
+    .stat-value { font-size: 1.2rem; font-weight: 600; color: #00d4ff; }
+    .stat-label { font-size: 0.75rem; color: #8892b0; text-transform: uppercase; }
+    .visualizer { display: flex; justify-content: center; align-items: flex-end; height: 40px; gap: 3px; margin-top: 1rem; display: none; }
+    .visualizer.visible { display: flex; }
+    .visualizer-bar { width: 4px; background: linear-gradient(to top, #00d4ff, #7b2cbf); border-radius: 2px; transition: height 0.05s ease; }
+    .error-message { background: rgba(229, 62, 62, 0.2); border: 1px solid rgba(229, 62, 62, 0.4); border-radius: 10px; padding: 1rem; margin-top: 1rem; font-size: 0.9rem; display: none; }
+    .error-message.visible { display: block; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🔊 Audio Stream</h1>
+    <p class="subtitle">iPad as Windows Speaker</p>
+
+    <div class="status-card">
+      <div class="status-indicator disconnected" id="statusIndicator">
+        <span class="status-icon" id="statusIcon">📡</span>
+      </div>
+      <p class="status-text" id="statusText">Ready to Connect</p>
+      <p class="status-detail" id="statusDetail">Tap the button below to start</p>
+
+      <div class="visualizer" id="visualizer"></div>
+    </div>
+
+    <button class="start-button" id="mainButton" onclick="toggleConnection()">
+      Start Audio
+    </button>
+
+    <div class="volume-control" id="volumeControl">
+      <div class="volume-label">
+        <span>Volume</span>
+        <span id="volumeValue">100%</span>
+      </div>
+      <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" oninput="updateVolume(this.value)">
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat-item">
+        <div class="stat-value" id="latencyValue">--</div>
+        <div class="stat-label">Latency</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="bufferValue">--</div>
+        <div class="stat-label">Buffer</div>
+      </div>
+    </div>
+
+    <div class="error-message" id="errorMessage"></div>
+  </div>
+
+  <script>
+    // Audio configuration
+    let audioContext = null;
+    let websocket = null;
+    let gainNode = null;
+    let isConnected = false;
+    let isPlaying = false;
+    let serverConfig = null;
+    let pingInterval = null;
+
+    // Jitter buffer / scheduling
+    let nextPlayTime = 0;
+
+    // Target buffer in front of playback (tune this)
+    const JITTER_BUFFER_MS = 80;   // good start for WiFi
+    const RESYNC_MIN_GAP_MS = 20;  // when underrun happens, restart quickly
+
+    // Stats
+    let packetsReceived = 0;
+
+    // Visualizer
+    const NUM_BARS = 20;
+    let visualizerBars = [];
+
+    function getWebSocketUrl() {
+      const host = window.location.hostname || 'localhost';
+      return `ws://${host}:8081`;
+    }
+
+    function initVisualizer() {
+      const container = document.getElementById('visualizer');
+      container.innerHTML = '';
+      visualizerBars = [];
+      for (let i = 0; i < NUM_BARS; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'visualizer-bar';
+        bar.style.height = '4px';
+        container.appendChild(bar);
+        visualizerBars.push(bar);
+      }
+    }
+
+    function updateVisualizer(audioData) {
+      if (!visualizerBars.length) return;
+      const samples = new Int16Array(audioData);
+      const step = Math.floor(samples.length / NUM_BARS) || 1;
+
+      for (let i = 0; i < NUM_BARS; i++) {
+        let sum = 0;
+        for (let j = 0; j < step; j++) {
+          sum += Math.abs(samples[i * step + j] || 0);
+        }
+        const avg = sum / step / 32768;
+        const height = Math.max(4, avg * 40);
+        visualizerBars[i].style.height = `${height}px`;
+      }
+    }
+
+    function updateUI(state, text, detail) {
+      const indicator = document.getElementById('statusIndicator');
+      const statusText = document.getElementById('statusText');
+      const statusDetail = document.getElementById('statusDetail');
+      const icon = document.getElementById('statusIcon');
+      const button = document.getElementById('mainButton');
+      const volumeControl = document.getElementById('volumeControl');
+      const stats = document.getElementById('stats');
+      const visualizer = document.getElementById('visualizer');
+
+      indicator.className = 'status-indicator ' + state;
+      statusText.textContent = text;
+      statusDetail.textContent = detail;
+
+      switch (state) {
+        case 'disconnected':
+          icon.textContent = '📡';
+          button.textContent = 'Start Audio';
+          button.className = 'start-button';
+          button.disabled = false;
+          volumeControl.classList.remove('visible');
+          stats.classList.remove('visible');
+          visualizer.classList.remove('visible');
+          break;
+        case 'connecting':
+          icon.textContent = '⏳';
+          button.textContent = 'Connecting...';
+          button.disabled = true;
+          break;
+        case 'connected':
+          icon.textContent = '✓';
+          button.textContent = 'Stop Audio';
+          button.className = 'start-button stop-button';
+          button.disabled = false;
+          volumeControl.classList.add('visible');
+          stats.classList.add('visible');
+          break;
+        case 'playing':
+          icon.textContent = '🎵';
+          button.textContent = 'Stop Audio';
+          button.className = 'start-button stop-button';
+          button.disabled = false;
+          volumeControl.classList.add('visible');
+          stats.classList.add('visible');
+          visualizer.classList.add('visible');
+          break;
+        case 'error':
+          icon.textContent = '⚠️';
+          button.textContent = 'Retry';
+          button.className = 'start-button';
+          button.disabled = false;
+          volumeControl.classList.remove('visible');
+          stats.classList.remove('visible');
+          visualizer.classList.remove('visible');
+          break;
+      }
+    }
+
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.classList.add('visible');
+    }
+
+    function hideError() {
+      document.getElementById('errorMessage').classList.remove('visible');
+    }
+
+    async function initAudio() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('Web Audio API not supported in this browser');
+
+      if (!audioContext) {
+        // Try low-latency mode (Safari may ignore some options)
+        try {
+          audioContext = new AudioContextClass({
+            sampleRate: serverConfig?.sampleRate || 48000,
+            latencyHint: 'interactive'
+          });
+        } catch (e) {
+          audioContext = new AudioContextClass();
+        }
+
+        gainNode = audioContext.createGain();
+        gainNode.connect(audioContext.destination);
+
+        console.log('AudioContext created, state:', audioContext.state, 'sampleRate:', audioContext.sampleRate);
+      }
+
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+
+      return audioContext;
+    }
+
+    // Convert interleaved int16 PCM -> AudioBuffer and schedule with jitter buffer
+    async function processAudioData(data) {
+      if (!audioContext || !isConnected) return;
+
+      try {
+        updateVisualizer(data);
+
+        const int16 = new Int16Array(data);
+
+        const channels = serverConfig?.channels || 2;
+        const serverSampleRate = serverConfig?.sampleRate || 48000;
+        const frameCount = Math.floor(int16.length / channels);
+
+        if (frameCount <= 0) return;
+
+        // Create AudioBuffer
+        const audioBuffer = audioContext.createBuffer(channels, frameCount, serverSampleRate);
+
+        // Deinterleave + convert to float [-1, 1]
+        for (let ch = 0; ch < channels; ch++) {
+          const channelData = audioBuffer.getChannelData(ch);
+          let idx = ch;
+          for (let i = 0; i < frameCount; i++, idx += channels) {
+            channelData[i] = int16[idx] / 32768.0;
+          }
+        }
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(gainNode);
+
+        const now = audioContext.currentTime;
+
+        // Initialize jitter buffer once
+        if (nextPlayTime === 0) {
+          nextPlayTime = now + (JITTER_BUFFER_MS / 1000);
+        }
+
+        // If we fell behind (underrun), resync quickly
+        if (nextPlayTime < now) {
+          nextPlayTime = now + (RESYNC_MIN_GAP_MS / 1000);
+        }
+
+        source.start(nextPlayTime);
+        nextPlayTime += audioBuffer.duration;
+
+        packetsReceived += 1;
+
+        // Stats: show buffered ms ahead
+        const bufferedMs = Math.max(0, (nextPlayTime - now) * 1000);
+        document.getElementById('latencyValue').textContent = `${Math.round(bufferedMs)}ms`;
+        document.getElementById('bufferValue').textContent = `${packetsReceived} pkts`;
+
+        if (!isPlaying) {
+          isPlaying = true;
+          updateUI('playing', 'Playing Audio', 'Streaming from Windows PC');
+        }
+      } catch (error) {
+        console.error('Audio processing error:', error);
+      }
+    }
+
+    async function connect() {
+      hideError();
+      updateUI('connecting', 'Connecting...', 'Establishing connection to server');
+
+      try {
+        // reset scheduling state
+        nextPlayTime = 0;
+        packetsReceived = 0;
+
+        await initAudio();
+        initVisualizer();
+
+        const wsUrl = getWebSocketUrl();
+        console.log('Connecting to:', wsUrl);
+
+        websocket = new WebSocket(wsUrl);
+        websocket.binaryType = 'arraybuffer';
+
+        websocket.onopen = () => {
+          isConnected = true;
+          updateUI('connected', 'Connected', 'Waiting for audio data...');
+
+          if (pingInterval) clearInterval(pingInterval);
+          pingInterval = setInterval(() => {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+              websocket.send(JSON.stringify({ type: 'ping' }));
+            }
+          }, 5000);
+        };
+
+        websocket.onmessage = async (event) => {
+          if (typeof event.data === 'string') {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'config') {
+              serverConfig = msg;
+              console.log('Server config:', serverConfig);
+
+              // If server sample rate differs, recreate context (best-effort)
+              if (audioContext && audioContext.sampleRate !== serverConfig.sampleRate) {
+                try { await audioContext.close(); } catch (_) {}
+                audioContext = null;
+                await initAudio();
+              }
+            }
+          } else {
+            await processAudioData(event.data);
+          }
+        };
+
+        websocket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          showError('Connection error. Make sure the server is running.');
+          updateUI('error', 'Connection Error', 'Could not connect to server');
+        };
+
+        websocket.onclose = () => {
+          isConnected = false;
+          isPlaying = false;
+          nextPlayTime = 0;
+          updateUI('disconnected', 'Disconnected', 'Connection closed');
+        };
+
+      } catch (error) {
+        console.error('Connection error:', error);
+        showError(error.message);
+        updateUI('error', 'Error', error.message);
+      }
+    }
+
+    function disconnect() {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
+      if (websocket) {
+        websocket.close();
+        websocket = null;
+      }
+      isConnected = false;
+      isPlaying = false;
+      nextPlayTime = 0;
+      updateUI('disconnected', 'Ready to Connect', 'Tap the button below to start');
+    }
+
+    function toggleConnection() {
+      if (isConnected) disconnect();
+      else connect();
+    }
+
+    function updateVolume(value) {
+      document.getElementById('volumeValue').textContent = `${value}%`;
+      if (gainNode) gainNode.gain.value = value / 100;
+    }
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible' && audioContext && audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+    });
+
+    window.addEventListener('touchstart', async () => {
+      if (audioContext && audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+    }, { once: false, passive: true });
+
+    initVisualizer();
+  </script>
+</body>
+</html>
