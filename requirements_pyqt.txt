@@ -1,0 +1,16 @@
+# PyQt6 version requirements
+# Install with: pip install -r requirements_pyqt.txt
+
+# Core dependencies (same as original)
+aiortc>=1.5.0
+sounddevice>=0.4.5
+numpy>=1.21.0
+aiohttp>=3.8.0
+av>=9.0.0
+
+# PyQt6 GUI
+PyQt6>=6.5.0
+
+# QR code generation (optional but recommended)
+qrcode[pil]>=7.3
+pillow>=9.0.0

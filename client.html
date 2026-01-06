@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>Audio Stream</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #fff;
+        padding: 20px;
+      }
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .subtitle {
+        color: #8892b0;
+        margin-bottom: 30px;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        max-width: 350px;
+        width: 100%;
+      }
+
+      #status {
+        font-size: 1.2rem;
+        margin-bottom: 20px;
+        min-height: 30px;
+      }
+
+      button {
+        width: 100%;
+        padding: 15px 30px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+        color: white;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+      }
+      button:disabled {
+        background: #4a5568;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      button.stop {
+        background: linear-gradient(135deg, #e53e3e, #c53030);
+      }
+
+      /* Make audio visible for debugging */
+      audio {
+        width: 100%;
+        margin-top: 20px;
+      }
+
+      #log {
+        margin-top: 20px;
+        width: 100%;
+        max-width: 350px;
+        height: 120px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 11px;
+        color: #0f0;
+        overflow-y: auto;
+        text-align: left;
+        display: none; /* Hidden in production */
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔊 Audio Stream</h1>
+    <p class="subtitle">Low-Latency</p>
+
+    <div class="card">
+      <div id="status">Ready</div>
+      <button id="btn" onclick="toggle()">Start Audio</button>
+      <audio id="audio" controls autoplay playsinline></audio>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+      const logEl = document.getElementById("log");
+      const statusEl = document.getElementById("status");
+      const btn = document.getElementById("btn");
+      const audioEl = document.getElementById("audio");
+
+      let pc = null;
+      let connected = false;
+      let reconnectAttempts = 0;
+
+      function log(msg) {
+        const time = new Date().toLocaleTimeString();
+        logEl.innerHTML += `[${time}] ${msg}<br>`;
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log(msg);
+      }
+
+      function setStatus(s) {
+        statusEl.textContent = s;
+      }
+
+      async function start() {
+        log("Starting...");
+        setStatus("Connecting...");
+        btn.disabled = true;
+
+        try {
+          pc = new RTCPeerConnection();
+
+          pc.addTransceiver("audio", { direction: "recvonly" });
+
+          pc.ontrack = (evt) => {
+            log(`Track received: ${evt.track.kind}`);
+            audioEl.srcObject = evt.streams[0];
+
+            // Force play
+            audioEl
+              .play()
+              .then(() => log("Audio playing!"))
+              .catch((e) => log("Play error: " + e.message));
+          };
+
+          pc.onconnectionstatechange = () => {
+            log(`Connection: ${pc.connectionState}`);
+            if (pc.connectionState === "connected") {
+              setStatus("🎵 Playing");
+              btn.textContent = "Stop Audio";
+              btn.className = "stop";
+              btn.disabled = false;
+              connected = true;
+              reconnectAttempts = 0; // Reset on success
+            } else if (
+              pc.connectionState === "failed" ||
+              pc.connectionState === "disconnected"
+            ) {
+              setStatus("Disconnected");
+              stop();
+              // Auto-reconnect
+              if (reconnectAttempts < 5) {
+                reconnectAttempts++;
+                log(
+                  `Auto-reconnecting in 2s (attempt ${reconnectAttempts}/5)...`
+                );
+                setTimeout(() => {
+                  if (!connected) start();
+                }, 2000);
+              } else {
+                log("Max reconnect attempts reached. Tap Start to try again.");
+              }
+            }
+          };
+
+          // Create offer
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+
+          // Wait for ICE gathering
+          await new Promise((resolve) => {
+            if (pc.iceGatheringState === "complete") {
+              resolve();
+            } else {
+              pc.onicegatheringstatechange = () => {
+                if (pc.iceGatheringState === "complete") resolve();
+              };
+            }
+          });
+
+          log("Sending offer to server...");
+
+          // Send to server
+          const resp = await fetch("/offer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sdp: pc.localDescription.sdp,
+              type: pc.localDescription.type,
+            }),
+          });
+
+          if (!resp.ok) {
+            throw new Error("Server error: " + resp.status);
+          }
+
+          const answer = await resp.json();
+          log("Got answer from server");
+          await pc.setRemoteDescription(answer);
+        } catch (e) {
+          log("Error: " + e.message);
+          setStatus("Error");
+          stop();
+        }
+      }
+
+      function stop() {
+        if (pc) {
+          pc.close();
+          pc = null;
+        }
+        audioEl.srcObject = null;
+        connected = false;
+        btn.textContent = "Start Audio";
+        btn.className = "";
+        btn.disabled = false;
+        setStatus("Ready");
+      }
+
+      function toggle() {
+        if (connected) {
+          stop();
+        } else {
+          start();
+        }
+      }
+
+      log("Page loaded. WebRTC: " + (window.RTCPeerConnection ? "YES" : "NO"));
+    </script>
+  </body>
+</html>
